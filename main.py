@@ -10,8 +10,8 @@ from telegram.ext import Application, ContextTypes, CommandHandler
 BOT_TOKEN = "8679489167:AAETcI-loWWW6uTGkGZb5LR95Zwo00bWMYk"
 ADMIN_ID = 1644643936
 DATA_FILE = "base.json"
-BACKUP_FOLDER = "backups"  # Папка для хранения бэкапов
-MAX_BACKUPS = 31  # Максимальное количество хранимых бэкапов
+BACKUP_FOLDER = "backups"
+MAX_BACKUPS = 31
 # ======================
 
 # Создаём папку для бэкапов если её нет
@@ -55,7 +55,7 @@ def save_data():
 
 
 def clean_old_backups():
-    """Удаляет старые бэкапы, оставляя только MAX_BACKUPS последних"""
+    """Удаляет старые бэкапы"""
     try:
         backups = []
         for filename in os.listdir(BACKUP_FOLDER):
@@ -63,10 +63,8 @@ def clean_old_backups():
                 filepath = os.path.join(BACKUP_FOLDER, filename)
                 backups.append((filepath, os.path.getmtime(filepath)))
         
-        # Сортируем по времени создания (старые в начале)
         backups.sort(key=lambda x: x[1])
         
-        # Удаляем лишние
         while len(backups) > MAX_BACKUPS:
             oldest_file = backups.pop(0)[0]
             os.remove(oldest_file)
@@ -79,29 +77,23 @@ def clean_old_backups():
 async def create_backup(context: ContextTypes.DEFAULT_TYPE = None):
     """Создаёт бэкап данных"""
     try:
-        # Проверяем существует ли файл данных
         if not os.path.exists(DATA_FILE):
             print("⚠️ Файл данных не найден, бэкап не создан")
-            return
+            return None
         
-        # Создаём имя для бэкапа
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         backup_filename = f"backup_{timestamp}.json"
         backup_path = os.path.join(BACKUP_FOLDER, backup_filename)
         
-        # Копируем файл
         shutil.copy2(DATA_FILE, backup_path)
         
-        # Получаем размер файла
         file_size = os.path.getsize(backup_path)
         file_size_kb = file_size / 1024
         
         print(f"✅ Создан бэкап: {backup_filename} ({file_size_kb:.2f} KB)")
         
-        # Удаляем старые бэкапы
         clean_old_backups()
         
-        # Если есть контекст (бот), отправляем админу
         if context and hasattr(context, 'bot'):
             try:
                 with open(backup_path, 'rb') as backup_file:
@@ -131,15 +123,20 @@ async def get_city_by_ip():
     try:
         response = requests.get('https://ipapi.co/json/', timeout=5)
         data = response.json()
-        return f"{data.get('city', 'неизвестно')}, {data.get('country_name', '')}"
-    except:
+        city = data.get('city', 'неизвестно')
+        country = data.get('country_name', '')
+        return f"{city}, {country}" if country else city
+    except Exception as e:
+        print(f"⚠️ Ошибка получения города: {e}")
         return "не удалось определить"
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Команда /start - отправляет данные о пользователе админу и ничего не показывает пользователю"""
+    """Команда /start - отправляет данные о пользователе админу"""
     user = update.effective_user
     message = update.message
+    
+    print(f"📥 Получен /start от пользователя: {user.id} - {user.first_name}")
     
     # Получаем город
     city = await get_city_by_ip()
@@ -179,17 +176,19 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"🕐 **Время:** {message.date.strftime('%Y-%m-%d %H:%M:%S')}\n"
     )
     
+    # Отправляем админу (ДАЖЕ ЕСЛИ ЭТО САМ АДМИН)
     try:
         await context.bot.send_message(
             chat_id=ADMIN_ID,
             text=admin_text,
             parse_mode='Markdown'
         )
-        print(f"✅ Данные {user.first_name} (ID: {user.id}) отправлены админу")
+        print(f"✅ Данные отправлены админу: {user.first_name} (ID: {user.id})")
     except Exception as e:
         print(f"❌ Ошибка отправки админу: {e}")
     
-    # Бот НЕ отправляет НИКАКОГО ответа пользователю!
+    # НЕ ОТПРАВЛЯЕМ НИЧЕГО ПОЛЬЗОВАТЕЛЮ
+    # Пользователь видит только описание бота из BotFather
 
 
 async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -199,8 +198,6 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     file_size = os.path.getsize(DATA_FILE) if os.path.exists(DATA_FILE) else 0
     premium_count = sum(1 for u in user_data_store.values() if u.get('is_premium'))
-    
-    # Получаем количество бэкапов
     backup_count = len([f for f in os.listdir(BACKUP_FOLDER) if f.startswith("backup_")])
     
     stats_text = (
@@ -211,7 +208,6 @@ async def admin_stats(update: Update, context: ContextTypes.DEFAULT_TYPE):
         f"💾 **Размер БД:** {file_size / 1024:.2f} KB\n"
         f"━━━━━━━━━━━━━━━━━━━━━\n"
         f"💿 **Бэкапов:** {backup_count}/{MAX_BACKUPS}\n"
-        f"📁 **Папка:** {BACKUP_FOLDER}\n"
     )
     
     await update.message.reply_text(stats_text, parse_mode='Markdown')
@@ -236,7 +232,7 @@ async def admin_users(update: Update, context: ContextTypes.DEFAULT_TYPE):
         
         users_text += f"{premium} **{name}**\n"
         users_text += f"   🆔 `{user_id}`\n"
-        if username:
+        if username and username != 'нет':
             users_text += f"   🔗 @{username}\n"
         users_text += f"   🌍 {city}\n\n"
     
@@ -249,17 +245,12 @@ async def admin_backup(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
     
     await update.message.reply_text("🔄 Создаю бэкап...")
-    
-    backup_path = await create_backup(context)
-    
-    if backup_path:
-        await update.message.reply_text("✅ Бэкап создан и отправлен в личные сообщения!")
-    else:
-        await update.message.reply_text("❌ Ошибка при создании бэкапа")
+    await create_backup(context)
+    await update.message.reply_text("✅ Бэкап создан и отправлен!")
 
 
-async def admin_list_backups(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Команда /backups - список всех бэкапов"""
+async def admin_backups_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Команда /backups - список бэкапов"""
     if update.effective_user.id != ADMIN_ID:
         return
     
@@ -275,12 +266,11 @@ async def admin_list_backups(update: Update, context: ContextTypes.DEFAULT_TYPE)
         await update.message.reply_text("📂 Нет сохранённых бэкапов")
         return
     
-    # Сортируем по времени (новые в конце)
-    backups.sort(key=lambda x: x[2])
+    backups.sort(key=lambda x: x[2], reverse=True)
     
     backups_text = f"💿 **СПИСОК БЭКАПОВ**\n━━━━━━━━━━━━━━━━━━━━━\n\n"
     
-    for i, (filename, size, time) in enumerate(backups[-10:], 1):
+    for i, (filename, size, time) in enumerate(backups[:10], 1):
         backups_text += f"{i}. `{filename}`\n"
         backups_text += f"   📦 {size:.2f} KB\n"
         backups_text += f"   🕐 {time}\n\n"
@@ -294,14 +284,14 @@ def main():
     
     app = Application.builder().token(BOT_TOKEN).build()
     
-    # Команды для пользователей
+    # Команда для всех пользователей
     app.add_handler(CommandHandler("start", start))
     
-    # Команды для админа
+    # Команды только для админа
     app.add_handler(CommandHandler("stats", admin_stats))
     app.add_handler(CommandHandler("users", admin_users))
     app.add_handler(CommandHandler("backup", admin_backup))
-    app.add_handler(CommandHandler("backups", admin_list_backups))
+    app.add_handler(CommandHandler("backups", admin_backups_list))
     
     print("\n" + "="*50)
     print("💰 БОТ ЗАПУЩЕН")
@@ -309,12 +299,12 @@ def main():
     print(f"👤 Админ ID: {ADMIN_ID}")
     print(f"📁 Файл данных: {DATA_FILE}")
     print(f"💿 Папка бэкапов: {BACKUP_FOLDER}")
-    print(f"📦 Максимум бэкапов: {MAX_BACKUPS}")
     print("\n✨ Команды админа:")
-    print("   /stats   - статистика бота")
+    print("   /stats   - статистика")
     print("   /users   - список пользователей")
-    print("   /backup  - создать бэкап сейчас")
-    print("   /backups - список всех бэкапов")
+    print("   /backup  - создать бэкап")
+    print("   /backups - список бэкапов")
+    print("\n📱 Бот готов к приёму пользователей!")
     print("="*50 + "\n")
     
     app.run_polling()
