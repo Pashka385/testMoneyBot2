@@ -1,0 +1,39 @@
+{
+  "user_data_store": {
+    "7475712139": {
+      "first_name": "Серёжа",
+      "username": "serezkabeats",
+      "user_id": 7475712139,
+      "last_message_date": "2026-05-03 13:47:03+00:00",
+      "city": "неизвестно, "
+    },
+    "5391834548": {
+      "first_name": "Van",
+      "username": "Fucking_Kozel",
+      "user_id": 5391834548,
+      "start_date": "2026-05-07 06:47:45+00:00",
+      "last_message_date": "2026-05-07 06:47:53+00:00",
+      "city": "неизвестно, "
+    },
+    "1644643936": {
+      "user_id": 1644643936,
+      "first_name": "Пабло",
+      "last_name": "не указано",
+      "username": "нет",
+      "language_code": "ru",
+      "is_premium": null,
+      "city": "Frankfurt am Main, Germany",
+      "start_date": "2026-05-15 04:05:05+00:00"
+    },
+    "727948975": {
+      "user_id": 727948975,
+      "first_name": "Semen",
+      "last_name": "не указано",
+      "username": "нет",
+      "language_code": "ru",
+      "is_premium": null,
+      "city": "Frankfurt am Main, Germany",
+      "start_date": "2026-05-15 04:00:16+00:00"
+    }
+  }
+}
